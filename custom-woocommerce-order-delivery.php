@@ -216,7 +216,7 @@ if ( ! class_exists( 'WC_Order_Delivery' ) ) {
 			include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/wc-od-shipping-delivery-functions.php';
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-settings.php';
             include_once  dirname(__FILE__) . '/../woocommerce/includes/shortcodes/class-wc-shortcode-checkout.php';
-            include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-checkout.php';
+            include_once  dirname(__FILE__) . '/includes/class-wc-od-checkout.php';
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-order-details.php';
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-delivery-cache.php';
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/admin/fields/class-wc-od-admin-field-delivery-ranges.php';

@@ -186,6 +186,7 @@ if ( ! class_exists( 'WC_Order_Delivery' ) ) {
             
 			
 			$this->custom_includes();
+		    $this->include_orders_custom_export();
             
 			if ( is_admin() ) {
 				include_once  dirname(__FILE__) .'/../woocommerce-order-delivery/includes/admin/class-wc-od-admin.php';
@@ -213,7 +214,7 @@ if ( ! class_exists( 'WC_Order_Delivery' ) ) {
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-delivery-ranges.php';
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-delivery-date.php';
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-delivery-dates.php';
-			include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/wc-od-shipping-delivery-functions.php';
+			include_once  dirname(__FILE__) . '/includes/wc-od-shipping-delivery-functions.php';
             include_once  dirname(__FILE__) . '/../woocommerce-order-delivery/includes/class-wc-od-settings.php';
             include_once  dirname(__FILE__) . '/../woocommerce/includes/shortcodes/class-wc-shortcode-checkout.php';
             include_once  dirname(__FILE__) . '/includes/class-wc-od-checkout.php';
@@ -239,7 +240,11 @@ if ( ! class_exists( 'WC_Order_Delivery' ) ) {
             //wp-content/plugins/woocommerce-order-delivery/includes/class-wc-od-delivery-ranges.php
             //wp-content/plugins/woocommerce-order-delivery/includes/abstracts/abstract-class-wc-od-settings-api.php
             //wp-content/plugins/woocommerce/includes/abstracts/abstract-wc-settings-api.php
+			
+		}
 
+		private function include_orders_custom_export(){
+			include_once  dirname(__FILE__) . '/custom-woocommerce-order-csv-export.php';
 		}
 		/**
 		 * Hook into actions and filters.
@@ -362,7 +367,15 @@ if ( ! class_exists( 'WC_Order_Delivery' ) ) {
 	 * @return WC_Order_Delivery The *Singleton* instance.
 	 */
 	function WC_OD() {
+		custom_settings();
 		return WC_Order_Delivery::instance();
+	}
+
+	function custom_checkout_settings(){
+		error_log(__CLASS__.':'.__METHOD__);
+	}
+	function custom_settings(){
+		add_action('woocommerce_checkout_shipping',  'custom_checkout_settings');
 	}
 
 	WC_OD();

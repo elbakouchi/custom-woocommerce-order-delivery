@@ -41,7 +41,11 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 		 */
 		private $first_delivery_date;
 
+		private $cart_products_timeslots = [];
 
+		private $prefix = '_del_date_'; 
+		
+		private $days_names = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 
 
 		/**
@@ -63,6 +67,30 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 			add_action( 'woocommerce_checkout_shipping', array( $this, 'checkout_content' ), 99 );
 			add_action( 'woocommerce_after_checkout_validation', array( $this, 'checkout_validation' ) );
 			add_action( 'woocommerce_checkout_create_order', array( $this, 'update_order_meta' ) );
+
+		}
+
+
+		private function get_current_product_timeslots($product_id, $day = null){
+			$timeslots = array();
+			if(is_null($day)){		
+				foreach($this->days_names as $_day){
+					$entry = '_del_date_dd_'.$_day.'_timeslots';
+					$_ = get_post_meta($product_id,$entry, true);
+					if (is_array($_)){
+						$timeslots[array_keys($this->days_names, $_day)[0]] = $_;
+					}
+				}
+				$entry = '_del_date_Override_WOD_dates' . $product_id;
+				if(!boolval( get_post_meta($product_id,$entry, true))){
+				  		
+				}
+			}else{
+				$entry = '_del_date_dd_'.$day.'_timeslots';
+				$_ = get_post_meta($product_id,$entry, true);
+				$timeslots[array_keys($this->days_names, $day)[0]] = $_;
+			}
+			return $timeslots;
 		}
 
 		/**
@@ -176,8 +204,76 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 				}
 			}
 			//print_r($args);
-			return wc_od_get_delivery_date_field_args( $args, 'checkout' );
+			return $this->custom_wc_od_get_delivery_date_field_args( $args, 'checkout' );
 		}
+
+		/**
+		 * Gets the delivery date field arguments.
+		 *
+		 * @since 1.1.0
+		 * @since 1.5.0 Updated default values for the `return` and `label` parameters.
+		 *
+		 * @param array  $args    Optional. The arguments to overwrite.
+		 * @param string $context Optional. The context in which the form field is used.
+		 *
+		 * @return array An array with the delivery date field arguments.
+		 */
+		function custom_wc_od_get_delivery_date_field_args( $args = array(), $context = '' ) {
+			$defaults = array(
+				'type'              => 'delivery_date',
+				'label'             => _x( 'Delivery Date', 'field label', 'woocommerce-order-delivery' ),
+				'placeholder'       => '',
+				'class'             => array( 'form-row-wide' ),
+				'required'          => ( 'required' === WC_OD()->settings()->get_setting( 'delivery_fields_option' ) ),
+				'return'            => false,
+				'value'             => '',
+				'custom_attributes' => array(
+					'readonly' => 'true',
+				),
+			);
+
+			// Add priority to allow sorting the field.
+			if ( 'checkout' === $context ) {
+				$defaults['priority'] = 10;
+			}
+
+			/**
+			 * Filters the arguments for the delivery date field.
+			 *
+			 * @since 1.0.0
+			 * @since 1.1.0 Added `$context` parameter.
+			 *
+			 * @param array  $args    The arguments for the delivery date field.
+			 * @param string $context The context in which the form field is used.
+			 */
+			$_ = WC_OD()->settings()->get_setting( 'delivery_fields_option' );
+			// print_r($_);
+			// echo 'Context:<br>';
+			// print_r($context);
+			// echo 'Args:<br>';
+			// print_r($args);
+			// echo 'Defaults:<br>';
+			// print_r($defaults);
+			return apply_filters( 'custom_wc_od_delivery_date_field_args', wp_parse_args( $args, $defaults ), $context );
+		}
+
+		public function get_product_timeslots_dayofweek($dayofweek, $index=0){
+			$result = array();
+
+			foreach($this->cart_products_timeslots as $product_id=>$timeslots){
+				foreach($timeslots as $day=>$timeslot){
+					//echo 'looped timeslots';print_r($timeslot);
+					if($day == $dayofweek){
+						foreach($timeslot as $key=>$value){
+							$index += $key;
+							$result['time-frame:'.$index] = $value;
+						}
+					}
+				}
+			}
+			return $result;
+		} 
+
 
 		/**
 		 * Register the delivery fields in the checkout form.
@@ -193,14 +289,20 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 			}
 
 			$delivery_date = $this->checkout_get_value( null, 'delivery_date' );
-
+		//	print_r($delivery_date);
+		    // error_log(__CLASS__ . ' ' . __METHOD__ .' delivery_date: ' .print_r($delivery_date, true));
 			$fields['delivery'] = array(
 				'delivery_date' => $this->get_delivery_date_field_args(),
 			);
-
+			//error_log(__CLASS__ . ' ' . __METHOD__ .' fields: ' .print_r($fields, true));
 			if ( $delivery_date ) {
 				add_filter( 'wc_od_get_time_frames_for_date', array( $this, 'filter_unavailable_time_frames' ), 10, 2 );
-
+				
+				$dayofweek = date('w', strtotime($delivery_date));
+				// echo 'day of week', $dayofweek, '<br>';
+				// print_r($product_timeslots);
+				// echo '<br>';
+				
 				$choices = wc_od_get_time_frames_choices_for_date(
 					$delivery_date,
 					array(
@@ -208,7 +310,14 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 					),
 					'checkout'
 				);
-
+				//$custom_choices = 
+				$product_timeslots = $this->get_product_timeslots_dayofweek($dayofweek, count($choices));
+				//error_log(__CLASS__ . ' ' . __METHOD__ .' custom choices: ' .print_r($product_timeslots, true));
+				$choices = array_merge($choices, $product_timeslots);
+				// echo 'Choices:';
+				// print_r($choices);
+				// echo '<br>';
+				
 				if ( ! empty( $choices ) ) {
 					$fields['delivery']['delivery_time_frame'] = array(
 						'label'    => _x( 'Time frame', 'checkout field label', 'woocommerce-order-delivery' ),
@@ -218,9 +327,10 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 						'options'  => $choices,
 						'priority' => 20,
 					);
+					debug_print_r(__FILE__, __CLASS__  , __METHOD__ ,' choices and custom choices ' ,$choices, __LINE__);
 				}
 			}
-
+			
 			return $fields;
 		}
 
@@ -261,8 +371,8 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 			$this->checkout_content();
 			$fragments['#wc-od'] = ob_get_clean();
 
-			$fragments = $this->add_calendar_settings_fragment( $fragments );
-
+			$fragments = $this->custom_add_calendar_settings_fragment( $fragments );
+			//error_log(__METHOD__.': '.print_r($fragments, true));
 			return $fragments;
 		}
 
@@ -294,29 +404,25 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 			foreach($cart_data as $key=>$value){foreach($value as $k=>$v){if($k=='product_id'){$products[]=$v;}}}
 			
 			$products = array_unique($products);
-			
-			$prefix = '_del_date_'; 
-			
 			$overrides = [];
 			
 			foreach($products as $post_id){
-				$pm = get_post_meta($post_id, $prefix . 'Override_WOD_dates' . $post_id, true);
+				//if(count($this->cart_products_timeslots) != count($products)){
+					$this->cart_products_timeslots[$post_id] = $this->get_current_product_timeslots($post_id);
+				//}
+				$pm = get_post_meta($post_id, $this->prefix . 'Override_WOD_dates' . $post_id, true);
 				if ( empty( $pm ) ) $pm = '0';
 				if( boolval( $pm ) ){
 					error_log  ( $pm . ": " . $post_id );
 				}else{
-					$shipping_method = $this->get_shipping_method();
-					$range           = WC_OD_Delivery_Ranges::get_range_matching_shipping_method( $shipping_method );
-					try{
-						echo $range->get_from();
-						echo $range->get_to();		
-					}catch(Throwable $e){
-						error_log ($e->getMessage());
-					}
+					
 				}
 			}
-			
-			
+
+			$shipping_method = $this->get_shipping_method();
+			$range           = WC_OD_Delivery_Ranges::get_range_matching_shipping_method( $shipping_method );
+				
+			//	print_r($this->cart_products_timeslots);
 			/**
 			 * Filter the arguments used by the checkout/form-delivery-date.php template.
 			 *
@@ -334,15 +440,13 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 					'delivery_option'     => WC_OD()->settings()->get_setting( 'checkout_delivery_option' ),
 					'shipping_date'       => wc_od_localize_date( $this->get_first_shipping_date() ),
 					'delivery_range'      => array(
-						'min' => (!is_null($range) && $range)?$range->get_from():1,
-						'max' => (!is_null($range) && $range)?$range->get_to():1,
+						'min' => (isset($range) && $range)?$range->get_from():1,
+						'max' => (isset($range) && $range)?$range->get_to():1,
 					),
 				)
 			);
-
 			wc_od_get_template( 'checkout/form-delivery-date.php', $args );
 		}
-
 		/**
 		 * Gets the arguments used to calculate the delivery date.
 		 *
@@ -355,8 +459,7 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 			$start_timestamp = strtotime( $this->min_delivery_days() . ' days', $today );
 			$end_timestamp   = strtotime( ( $this->max_delivery_days() + 1 ) . ' days', $today ); // Non-inclusive.
 			$delivery_days   = WC_OD()->settings()->get_setting( 'delivery_days' );
-			//print_r($delivery_days);
-			$disabled_dates = wc_od_get_disabled_days(
+			$disabled_dates  = wc_od_get_disabled_days(
 				array(
 					'type'    => 'delivery',
 					'start'   => date( 'Y-m-d', $start_timestamp ),
@@ -411,7 +514,6 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 		 */
 		function custom_wc_od_get_delivery_days_status( $delivery_days = array(), $args = array(), $context = '' ) {
 			$gotten_delivery_days = wc_od_get_delivery_days( $delivery_days );
-			//print_r($gotten_delivery_days);
 			$statuses      = array();
 
 			foreach ( $gotten_delivery_days as $index => $delivery_day ) {
@@ -444,20 +546,18 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 					[$start, $end] = explode(' - ', $timeslots); 
 					$start = explode(' ', $start)[0];
 					$end   = explode(' ', $end)[0];
-					//echo $start, $end;
-
-					//echo '<br>';
+					
 					$timeslot_obj = array(
 						'enabled'          => 'yes',
 						'number_of_orders' => 0,
-						'time_frames'      => array(
+						'time_frames'      => [array(
 							'title' => 'Day of week '.$weekday,
 							'time_from' => $start,
 							'time_to' => $end,
 							'number_of_orders' => 0,
-							'shipping_methods_option' => '',
-							'shipping_methods' => array()
-						),
+						//	'shipping_methods_option' => '',
+						//	'shipping_methods' => array()
+						)],
 					);
 					//print_r($timeslot_obj);
 					$timeslots_array[]      = $timeslot_obj;
@@ -465,7 +565,6 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 					$timeslots_woodd_objs[] = $dump;
 
 				}	
-				//echo 'count($timeslots_array):',count($timeslots_array), '<br>count($timeslots_woodd_objs):' , count($timeslots_woodd_objs), '<br>';
 				return [$timeslots_array, $timeslots_woodd_objs];
 			}
 			return [false,false];
@@ -477,14 +576,13 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 		public function get_ride_of_rudandancy($raw_timeslots_array, $timeslots_objs_array, $entry, $day_index){
 
 			$customs = get_option( $entry  );
-			//echo count($customs), '<br>';
 			
 			[$timeslots_array, $timeslots_woodd_obj] = $this->convert_timslots($customs , $day_index);
 			if(is_array($timeslots_array)) {
 				$raw_timeslots_array = array_merge($raw_timeslots_array, $timeslots_array);
 				$timeslots_objs_array = array_merge($timeslots_objs_array, $timeslots_woodd_obj);
 			}
-			// echo count($raw_timeslots_array), '<br>', count( $timeslots_objs_array), '<br>';
+			
 			return [$raw_timeslots_array, $timeslots_objs_array];
 		}
 
@@ -532,35 +630,27 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 		public function get_calendar_settings() {
 			$date_format = wc_od_get_date_format( 'php' );
 			$args        = $this->get_delivery_date_args();
-			//print_r($args['delivery_days']);
+		
 			[$days_timeslots, $days_timeslots_collection_obj]  = $this->get_days_of_week_having_timeslots();
-			//echo 'count days_timeslots:' , count($days_timeslots);
-			//print_r($days_timeslots);
-			//print_r($days_timeslots_collection_obj);
-			//print_r($args);
-			// $_ = wc_od_get_delivery_days($days_timeslots);
-			// $__ = wc_od_get_delivery_days(array_merge ($args['delivery_days'], $days_timeslots));
-			// print_r($_);
-			// echo ".....................";
-			// print_r($__);
+			
 			$_ = $this->merge_days_timeslots($args['delivery_days'], $days_timeslots);
-		//	print_r($_);
+		
 			$delivery_days_status = $this->custom_wc_od_get_delivery_days_status(
-				$_,//$args['delivery_days'],
+				$_,
 				array(
 					'shipping_method' => $args['shipping_method'],
 				),
 				'checkout'
 			);
 
-			//print_r($delivery_days_status);
+			
 			$daysOfWeekDisabled = array_keys($delivery_days_status, 'no', true);
-			//print_r($daysOfWeekDisabled);
+
 			return wc_od_get_calendar_settings(
 				array(
 					'startDate'          => wc_od_localize_date( $args['start_date'], $date_format ),
 					'endDate'            => wc_od_localize_date( ( wc_od_get_timestamp( $args['end_date'] ) - DAY_IN_SECONDS ), $date_format ), // Inclusive.
-					'daysOfWeekDisabled' => $daysOfWeekDisabled, //array_keys( $delivery_days_status, 'no', true ),
+					'daysOfWeekDisabled' => $daysOfWeekDisabled, 
 					'datesDisabled'      => array_map( 'wc_od_localize_date', $args['disabled_days'] ),
 				),
 				'checkout'
@@ -597,11 +687,11 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 		 * @param array $fragments The fragments to update in the checkout form.
 		 * @return mixed An array with the checkout fragments.
 		 */
-		public function add_calendar_settings_fragment( $fragments ) {
+		public function custom_add_calendar_settings_fragment( $fragments ) {
 			ob_start();
 			$this->print_calendar_settings();
 			$fragments['#wc_od_checkout_l10n'] = ob_get_clean();
-
+			//error_log(__METHOD__. ': ' .print_r($fragments, true));
 			return $fragments;
 		}
 
@@ -619,6 +709,7 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 
 			$checkout = WC()->checkout();
 			$fields   = $checkout->get_checkout_fields( 'delivery' );
+			print_r($fields);
 
 			foreach ( $fields as $field_id => $field ) {
 				/**
@@ -663,6 +754,7 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 		 * @param array $field The field data.
 		 */
 		public function validate_delivery_time_frame( $value, $field ) {
+			//return $value;
 			if ( $value && ! in_array( $value, array_keys( $field['options'] ), true ) ) {
 				/* translators: %s: field label */
 				wc_add_notice( sprintf( __( '%s is not valid.', 'woocommerce-order-delivery' ), '<strong>' . esc_html( $field['label'] ) . '</strong>' ), 'error' );

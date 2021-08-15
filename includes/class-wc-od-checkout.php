@@ -323,11 +323,11 @@ if ( ! class_exists( 'WC_OD_Checkout' ) ) {
 						'label'    => _x( 'Time frame', 'checkout field label', 'woocommerce-order-delivery' ),
 						'type'     => 'select',
 						'class'    => array( 'form-row-wide' ),
-						'required' => ( 'required' === WC_OD()->settings()->get_setting( 'delivery_fields_option' ) ),
+						'required' => true,// ( 'required' === WC_OD()->settings()->get_setting( 'delivery_fields_option' ) ),
 						'options'  => $choices,
 						'priority' => 20,
 					);
-					debug_print_r(__FILE__, __CLASS__  , __METHOD__ ,' choices and custom choices ' ,$choices, __LINE__);
+					//debug_print_r(__FILE__, __CLASS__  , __METHOD__ ,' choices and custom choices ' ,$choices, __LINE__);
 				}
 			}
 			

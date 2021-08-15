@@ -186,7 +186,7 @@ if ( ! class_exists( 'WC_Order_Delivery' ) ) {
             
 			
 			$this->custom_includes();
-		    $this->include_orders_custom_export();
+		   // $this->include_orders_custom_export();
             
 			if ( is_admin() ) {
 				include_once  dirname(__FILE__) .'/../woocommerce-order-delivery/includes/admin/class-wc-od-admin.php';
